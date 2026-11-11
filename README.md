@@ -237,13 +237,6 @@ Improve Your Community
 
 ---
 
-## Current Status
-
-> **Nirmaan is currently UNDER CONSTRUCTION.**
-
-
----
-
 ## Product Roadmap
 
 Nirmaan is being developed as a long-term project.
@@ -289,7 +282,7 @@ Nirmaan is being developed as a long-term project.
 
 ## Future AI / ML
 
-The AI/ML layer is planned as one of the major components of Nirmaan.
+The AI/ML layer is one of the major components of Nirmaan.
 
 | AI / ML Module | Purpose |
 |:---|:---|
