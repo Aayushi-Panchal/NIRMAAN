@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nirmaan — Civic Infrastructure Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<script src="leaflet/leaflet.js"></script>
+</head>
+<body>
+
+<!-- TOP NAVIGATION & PORTAL SWITCHER -->
+<nav class="topnav">
+  <div class="wrap" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+    <div class="brand" onclick="switchPortal('citizen')" style="cursor:pointer;">
+      <span class="mark"></span>Nirmaan
+    </div>
+
+    <!-- Portal Navigation -->
+    <div class="portal-nav-group">
+      <div class="portal-pill-bar">
+        <button type="button" class="portal-btn active" id="btnPortalCitizen" onclick="switchPortal('citizen')">
+          <span>👤</span> Citizen Portal
+        </button>
+        <button type="button" class="portal-btn" id="btnPortalContrib" onclick="switchPortal('contributor')">
+          <span>🔨</span> Contributor Portal
+        </button>
+        <button type="button" class="portal-btn" id="btnPortalAdmin" onclick="switchPortal('admin')">
+          <span>🛡️</span> Admin Portal
+        </button>
+      </div>
+    </div>
+
+    <div class="navlinks" id="portalNavLinks">
+      <a href="#report" class="cit-nav-link">Report</a>
+      <a href="#myReports" class="cit-nav-link">My Reports</a>
+      <a href="#board" class="cit-nav-link">Live Board</a>
+      <a href="#rewards" class="cit-nav-link">Rewards</a>
+    </div>
+
+    <button type="button" onclick="goToReportFlow()" class="navcta" id="navCtaBtn">+ Report problem</button>
+  </div>
+</nav>
+
+
+<!-- ===================================================================== -->
+<!-- 1. CITIZEN PORTAL VIEW                                                -->
+<!-- ===================================================================== -->
+<div id="viewCitizen" class="view active">
+
+  <!-- Role Sub-Bar for Quick Category Context -->
+  <div class="role-bar">
+    <div class="wrap">
+      <div class="role-tab active" data-role="citizen"><span class="dot"></span>Citizen Portal</div>
+      <div style="margin-left:auto; font-size:12px; font-family:'IBM Plex Mono',monospace; opacity:0.8; display:flex; align-items:center; gap:8px;">
+        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green);"></span>
+        <span>CONNECTED TO NIRMAAN AI & MYSQL BACKEND</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">Civic Infrastructure Platform</div>
+        <h1>Your street's problem<br>doesn't need to wait<br>for <em>the next election.</em></h1>
+        <p class="lead">Report a pothole, a dead streetlight, a broken drain. Nirmaan's AI scopes the fix, estimates the cost, and pulls in the engineers, NGOs and neighbours who can actually solve it — funded together, tracked in the open.</p>
+        <div class="hero-ctas">
+          <a href="#report" class="btn btn-primary">Report a problem →</a>
+          <a href="#board" class="btn btn-ghost">See what's being funded</a>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><b id="heroReportCount">0</b><span>PROBLEMS LOGGED</span></div>
+          <div class="stat"><b id="heroFundedAmount">₹0</b><span>COMMUNITY BACKED</span></div>
+          <div class="stat"><b>1,000</b><span>VERIFIED CONTRIBUTORS</span></div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="map-canvas" id="heroMap">
+          <!-- Real Leaflet India Map rendered dynamically -->
+        </div>
+        <div class="map-legend">
+          <span><i style="background:var(--terracotta)"></i>High severity</span>
+          <span><i style="background:var(--marigold)"></i>Medium</span>
+          <span><i style="background:var(--green)"></i>Low / completed</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- REPORT FLOW -->
+  <section id="report">
+    <div class="wrap">
+      <div class="report-section">
+        <div class="report-grid">
+          <div class="report-left">
+            <div class="kicker">Step 01 — Report</div>
+            <h2 style="color:#fff; font-size:26px; margin-bottom:10px;">What's broken near you?</h2>
+            <p style="opacity:0.6; font-size:14px; line-height:1.6;">Snap a photo, enter location. Our ResNet-50 vision model and ResNet-18 severity network evaluate the damage the way a municipal engineer would.</p>
+
+            <div class="upload-zone" id="uploadZone">
+              <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg, image/webp" style="display:none;" />
+              <div id="uploadPlaceholder">
+                <div class="icon">📷</div>
+                <b style="font-size:13.5px;">Upload or take a photo</b>
+                <small>Click to browse or drop an image here (JPG, PNG, WebP)</small>
+              </div>
+              <div id="uploadPreviewContainer" style="display:none; text-align:center;">
+                <img id="imagePreview" src="" alt="Uploaded problem photo" class="upload-preview" />
+                <small id="uploadFileName" style="display:block; margin-top:8px; opacity:0.8; font-family:'IBM Plex Mono',monospace;"></small>
+                <button type="button" id="changePhotoBtn" style="margin-top:8px; background:rgba(247,245,239,0.15); color:#fff; border:1px solid rgba(247,245,239,0.3); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">Change photo</button>
+              </div>
+            </div>
+
+            <div class="location-group" style="margin-top:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label for="locationInput" style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; opacity:0.75; color:#fff; margin-bottom:0;">PROBLEM LOCATION / ADDRESS</label>
+                <button type="button" id="btnDetectGps" onclick="detectUserGps()" style="background:rgba(242,169,59,0.2); color:var(--marigold); border:1px solid rgba(242,169,59,0.4); padding:3px 8px; border-radius:3px; font-size:11px; cursor:pointer; font-family:'IBM Plex Mono',monospace;">📍 Detect GPS</button>
+              </div>
+              <input type="text" id="locationInput" placeholder="Enter landmark, street or city (e.g. Connaught Place, New Delhi)" value="" style="width:100%; box-sizing:border-box; background:rgba(247,245,239,0.06); border:1px solid rgba(247,245,239,0.2); border-radius:4px; padding:10px 14px; color:#fff; font-family:'Inter',sans-serif; font-size:13px; outline:none;" />
+              <input type="hidden" id="latitudeInput" value="" />
+              <input type="hidden" id="longitudeInput" value="" />
+              <small id="gpsStatusText" style="display:block; margin-top:5px; font-size:11px; opacity:0.55; color:#fff; font-family:'IBM Plex Mono',monospace;">Enter any Indian city/area or use GPS to pin accurately on the India map</small>
+            </div>
+          </div>
+
+          <div class="report-right">
+            <div class="kicker" style="color:var(--marigold);">Step 02 — AI assessment</div>
+            <div class="ai-console">
+              <div class="ai-console-head">
+                <span class="ai-dot" id="aiDot"></span>
+                <span id="aiConsoleTitle">nirmaan-vision-engine · resnet50</span>
+                <span id="aiDeviceBadge" style="margin-left:auto; font-size:11px; background:rgba(247,245,239,0.1); padding:2px 8px; border-radius:12px;">READY</span>
+              </div>
+
+              <div class="ai-idle" id="aiIdle">Upload or drop a civic problem photo above to run ResNet-50 recognition.</div>
+
+              <div class="ai-loading" id="aiLoading">
+                <div class="spinner"></div>
+                <div class="line" id="loadLine1">Uploading image to Nirmaan AI API…</div>
+                <div class="line" id="loadLine2" style="opacity:0">Running ResNet-50 neural network…</div>
+                <div class="line" id="loadLine3" style="opacity:0">Calculating confidence & civic metadata…</div>
+              </div>
+
+              <div class="ai-result" id="aiResult">
+                <div class="result-row">
+                  <span class="result-label">PREDICTED CATEGORY</span>
+                  <span class="result-value" id="rCategory" style="color:var(--marigold);">—</span>
+                </div>
+                <div class="result-row">
+                  <span class="result-label">AI CONFIDENCE</span>
+                  <span class="badge verified" id="rConfidence" style="background:rgba(60,131,97,0.18); color:var(--green); font-weight:700;">—</span>
+                </div>
+                <div class="result-row">
+                  <span class="result-label">SEVERITY ASSESSMENT</span>
+                  <span class="badge high" id="rSeverity">—</span>
+                </div>
+                <div class="result-row">
+                  <span class="result-label">WHY THIS SCORE</span>
+                  <span class="result-value" id="rReason" style="font-weight:500; font-size:13px; text-align:right; max-width:240px;">—</span>
+                </div>
+                <div class="result-row">
+                  <span class="result-label">EST. REPAIR COST</span>
+                  <span class="result-value" id="rCost">—</span>
+                </div>
+                <div class="result-row">
+                  <span class="result-label">MODEL VERIFICATION</span>
+                  <span class="badge verified" id="rModelVerify">✓ ResNet-50 + ResNet-18 Severity</span>
+                </div>
+
+                <div style="margin-top:18px;">
+                  <div class="result-label" style="margin-bottom:8px;">TOP MATCHES NEARBY</div>
+                  <div class="match-list" id="rMatches"></div>
+                </div>
+
+                <button class="ai-cta" id="publishBtn" onclick="submitReportToDatabase()">Publish to problem board →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MY REPORTS & LIVE TRACKING (CITIZEN WORKFLOW) -->
+  <section id="myReports" style="background:var(--paper-dim); padding:60px 0;">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Live tracking</div>
+          <h2>My reported problems & progress timeline</h2>
+        </div>
+        <p>Real-time lifecycle tracking of cases you submitted. Follow work proofs, funding releases, and municipal verification.</p>
+      </div>
+
+      <div id="myReportsList">
+        <!-- Rendered dynamically from database -->
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM BOARD (DATABASE-DRIVEN) -->
+  <section id="board">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Live board</div>
+          <h2>Problems being funded right now</h2>
+        </div>
+        <p>Every card and map pin is backed by a live database record — filter by category, back with demo funds, and track progress.</p>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-pill active" onclick="filterBoard('all', this)">All</div>
+        <div class="filter-pill" onclick="filterBoard('potholes', this)">Roads</div>
+        <div class="filter-pill" onclick="filterBoard('streetlights', this)">Streetlights</div>
+        <div class="filter-pill" onclick="filterBoard('waterlogging', this)">Drainage</div>
+        <div class="filter-pill" onclick="filterBoard('garbage', this)">Sanitation</div>
+      </div>
+
+      <div class="board-layout">
+        <div>
+          <div id="problemCardsContainer">
+            <!-- Dynamically populated from /api/reports -->
+            <div style="text-align:center; padding:40px; color:var(--slate);">Loading problems from database…</div>
+          </div>
+
+          <!-- Problem Detail & Funding Simulator Drawer -->
+          <div class="detail-panel" id="detailPanel">
+            <div class="detail-head">
+              <div>
+                <div class="kicker" id="detailKicker">LOCATION DETAILS</div>
+                <h3 id="detailTitle">Problem Title</h3>
+              </div>
+              <span class="badge high" id="detailBadge">High severity</span>
+            </div>
+
+            <!-- Visual Progress Bar -->
+            <div style="margin:14px 0 20px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px;">
+                <span id="detailFundingRatio" style="font-weight:700;">₹0 / ₹0</span>
+                <span id="detailFundingPct" style="color:var(--green); font-weight:700;">0% funded</span>
+              </div>
+              <div class="paving-bar" style="height:10px;">
+                <div class="paving-fill" id="detailProgressBar" style="width:0%;"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:11px; font-family:'IBM Plex Mono',monospace; opacity:0.7;">
+                <span id="detailRemaining">₹0 remaining</span>
+                <span id="detailFundersCount">0 funders</span>
+              </div>
+            </div>
+
+            <div class="detail-stats">
+              <div class="dstat"><span>AI EST. COST</span><b id="detailCost">₹8,000</b></div>
+              <div class="dstat"><span>FUNDS RELEASED</span><b id="detailReleased" style="color:var(--green);">₹0</b></div>
+              <div class="dstat"><span>ETA / STATUS</span><b id="detailEta">4 days</b></div>
+            </div>
+
+            <!-- SIMULATED CONTRIBUTION CONTROLS -->
+            <div style="margin-top:20px; padding:18px; background:var(--paper-dim); border-radius:6px; border:1px solid var(--line);">
+              <div class="result-label" style="margin-bottom:8px; font-weight:700;">SIMULATE DEMO CONTRIBUTION</div>
+              <div class="amount-chips">
+                <button type="button" class="amount-chip" onclick="selectDemoAmount(500, this)">+₹500</button>
+                <button type="button" class="amount-chip active" onclick="selectDemoAmount(1000, this)">+₹1,000</button>
+                <button type="button" class="amount-chip" onclick="selectDemoAmount(2500, this)">+₹2,500</button>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:10px;">
+                <input type="number" id="customAmountInput" value="1000" placeholder="Amount in ₹" style="width:140px; padding:10px 14px; border:1px solid var(--line); border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:13px;" />
+                <button type="button" class="fund-btn" id="btnContributeNow" onclick="contributeToSelectedProblem()" style="margin-top:0; flex:1;">
+                  Back this fix with demo funds →
+                </button>
+              </div>
+              <small style="display:block; margin-top:8px; font-size:11px; color:var(--slate); font-family:'IBM Plex Mono',monospace;">Updates live database ledger and unlocks contractor milestones.</small>
+            </div>
+
+            <div class="result-label" style="margin-top:20px; margin-bottom:8px;">CONTRIBUTORS LEDGER</div>
+            <div class="contrib-list" id="contribList">
+              <!-- Dynamically populated from campaign transactions -->
+            </div>
+          </div>
+        </div>
+
+        <div class="map-panel">
+          <div class="map-canvas" id="boardMap">
+            <!-- Dynamic map pins mapped from reports -->
+          </div>
+          <div class="map-legend"><span style="opacity:0.7;">Live civic report pins from real coordinates</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REWARDS -->
+  <section id="rewards">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Give back, get recognised</div>
+          <h2>Nobody fixes their street for free — or for nothing back</h2>
+        </div>
+        <p>Every contribution — money, labour, or a verified report — earns ATM-Nirbhar points, tracked dynamically in the database.</p>
+      </div>
+
+      <div class="reward-strip">
+        <div class="reward-tile"><div class="num" id="rewScore">0</div><div class="lbl">YOUR ATM-NIRBHAR SCORE</div></div>
+        <div class="reward-tile"><div class="num" id="rewContributed">₹0</div><div class="lbl">CONTRIBUTED THIS YEAR</div></div>
+        <div class="reward-tile"><div class="num" id="rewBacked">0</div><div class="lbl">PROBLEMS BACKED</div></div>
+        <div class="reward-tile"><div class="num" id="rewTier">Bronze</div><div class="lbl">CIVIC TIER</div></div>
+      </div>
+
+      <div class="leaderboard" id="rewardsLeaderboard">
+        <!-- Rendered from database -->
+      </div>
+    </div>
+  </section>
+</div>
+
+
+<!-- ===================================================================== -->
+<!-- 2. CONTRIBUTOR PORTAL VIEW                                            -->
+<!-- ===================================================================== -->
+<div id="viewContributor" class="view">
+  <div class="admin-header" style="background:#16233F;">
+    <div class="wrap">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="kicker" style="color:var(--marigold);">Contributor Workspace</div>
+          <h2 style="color:#fff; font-size:28px;">Civic Tasks & Field Execution</h2>
+          <p style="opacity:0.7; font-size:14px; margin-top:4px;">All open complaints in your service radius are visible. Recommendation scores indicate AI suitability match.</p>
+        </div>
+        <div style="text-align:right;">
+          <span class="badge verified" style="font-size:12px;">ACTIVE CONTRACTOR ID: <span id="activeContribId">usr_contractor_1</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Role Tabs within Contributor Portal -->
+  <div class="role-bar">
+    <div class="wrap">
+      <div class="role-tab active" data-contrib-role="contractor" onclick="switchContributorSubRole('contractor', this)"><span class="dot"></span>Contractor (Roads / Civil)</div>
+      <div class="role-tab" data-contrib-role="engineer" onclick="switchContributorSubRole('engineer', this)"><span class="dot"></span>Engineer (Electrical / Drainage)</div>
+      <div class="role-tab" data-contrib-role="ngo" onclick="switchContributorSubRole('ngo', this)"><span class="dot"></span>NGO (Plantation / Social)</div>
+      <div class="role-tab" data-contrib-role="company" onclick="switchContributorSubRole('company', this)"><span class="dot"></span>Company / CSR (Ward Adoption)</div>
+    </div>
+  </div>
+
+  <section style="padding:40px 0;">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Open Tasks</div>
+          <h2 id="contribHeading">Jobs near you, ranked by fit</h2>
+        </div>
+        <p id="contribSub">All open complaints are accessible. Match scores provide transparent suitability recommendation signals.</p>
+      </div>
+
+      <div class="dash-grid" id="contributorTasksGrid">
+        <!-- Dynamically rendered from /api/contributor/tasks -->
+        <div style="padding:30px; text-align:center; color:var(--slate);">Loading active tasks...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contributor Earnings & Disbursements Ledger Section -->
+  <section style="padding:0 0 50px 0;">
+    <div class="wrap">
+      <div class="section-head" style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <div class="kicker" style="color:var(--green);">Financial Credits & Payouts</div>
+          <h2>Verified Disbursements Ledger</h2>
+          <p style="margin:4px 0 0; font-size:13px; color:var(--slate);">Public & municipal funds credited upon approved milestone completion.</p>
+        </div>
+        <div style="background:#fff; border:1px solid var(--line); border-radius:6px; padding:10px 18px; text-align:right;">
+          <span style="font-size:11px; color:var(--slate); font-family:'IBM Plex Mono',monospace; display:block; letter-spacing:0.05em;">LIFETIME EARNINGS CREDITED</span>
+          <span id="contributorTotalEarnings" style="font-size:24px; font-weight:800; color:var(--green); font-family:'IBM Plex Mono',monospace;">₹0</span>
+        </div>
+      </div>
+
+      <div id="contributorPaymentsContainer" style="background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
+        <!-- Dynamically rendered from /api/contributor/payments -->
+        <div style="padding:30px; text-align:center; color:var(--slate);">Loading payment history...</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+
+<!-- ===================================================================== -->
+<!-- 3. ADMIN PORTAL VIEW                                                  -->
+<!-- ===================================================================== -->
+<div id="viewAdmin" class="view">
+  <div class="admin-header">
+    <div class="wrap">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div class="eyebrow" style="color:var(--marigold); margin-bottom:8px;">Municipal Corporation · Central Command</div>
+          <h1 style="color:#fff; font-size:32px; margin-bottom:6px;">Administrative Control & Verification Console</h1>
+          <p style="opacity:0.75; font-size:14px; max-width:640px;">Centralized civic oversight: verify photographic work proof, disburse milestone funds, and manage civic infrastructure projects.</p>
+        </div>
+        <div style="background:rgba(247,245,239,0.08); padding:10px 18px; border-radius:6px; border:1px solid rgba(247,245,239,0.15); text-align:right;">
+          <div style="font-size:11px; font-family:'IBM Plex Mono',monospace; opacity:0.7;">OFFICER IN CHARGE</div>
+          <div style="font-weight:700; font-size:13px; color:#fff;">Municipal Commissioner Sharma</div>
+        </div>
+      </div>
+
+      <!-- 5 Central KPI Stat Cards -->
+      <div class="admin-kpis">
+        <div class="kpi-card"><div class="val" id="kpiReports">0</div><div class="lbl">TOTAL REPORTS</div></div>
+        <div class="kpi-card"><div class="val" id="kpiFunding">0</div><div class="lbl">IN FUNDING</div></div>
+        <div class="kpi-card"><div class="val" id="kpiInProgress">0</div><div class="lbl">ACTIVE IN PROGRESS</div></div>
+        <div class="kpi-card"><div class="val" id="kpiPendingVerif" style="color:var(--terracotta);">0</div><div class="lbl">PENDING VERIFICATION</div></div>
+        <div class="kpi-card"><div class="val" id="kpiFundsReleased" style="color:var(--green);">₹0</div><div class="lbl">FUNDS RELEASED</div></div>
+      </div>
+    </div>
+  </div>
+
+  <section style="padding:30px 0;">
+    <div class="wrap">
+      <div class="admin-tabs">
+        <div class="admin-tab active" onclick="switchAdminTab('queue', this)">Pending Verification Queue (<span id="tabPendingCount">0</span>)</div>
+        <div class="admin-tab" onclick="switchAdminTab('reports', this)">All Civic Cases & Campaigns</div>
+        <div class="admin-tab" onclick="switchAdminTab('history', this)">Status Audit History</div>
+      </div>
+
+      <!-- TAB 1: VERIFICATION QUEUE -->
+      <div id="adminTabQueue">
+        <div id="adminVerifCardsContainer">
+          <!-- Dynamically populated from /api/admin/verifications -->
+        </div>
+      </div>
+
+      <!-- TAB 2: ALL REPORTS TABLE -->
+      <div id="adminTabReports" style="display:none;">
+        <table class="n-table">
+          <thead>
+            <tr>
+              <th>ID & DEFECT</th>
+              <th>CATEGORY</th>
+              <th>SEVERITY</th>
+              <th>STATUS</th>
+              <th>FUNDING (RAISED/GOAL)</th>
+              <th>RELEASED</th>
+              <th>ASSIGNED TO</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="adminReportsTableBody">
+            <!-- Dynamically populated from /api/admin/reports -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- TAB 3: AUDIT HISTORY FEED -->
+      <div id="adminTabHistory" style="display:none;">
+        <div style="background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px;" id="adminHistoryFeed">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+
+<!-- ===================================================================== -->
+<!-- SHARED MODALS & WORKFLOW DRAWERS                                      -->
+<!-- ===================================================================== -->
+
+<!-- Contributor Progress Update Modal -->
+<div class="modal-backdrop" id="modalProgressUpdate">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="kicker" style="color:var(--marigold);">Field Progress Submission</div>
+        <h3 id="progModalTitle">Update On-Site Work</h3>
+      </div>
+      <button type="button" class="modal-close" onclick="closeProgressModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="progModalReportId" />
+      <input type="hidden" id="progModalAssignmentId" />
+
+      <label style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; font-weight:700;">MILESTONE PROGRESS PERCENTAGE</label>
+      <div style="display:flex; gap:10px; margin-bottom:18px;">
+        <label style="flex:1; border:1px solid var(--line); padding:10px; border-radius:4px; text-align:center; cursor:pointer;">
+          <input type="radio" name="progPct" value="25" checked /> 25%
+        </label>
+        <label style="flex:1; border:1px solid var(--line); padding:10px; border-radius:4px; text-align:center; cursor:pointer;">
+          <input type="radio" name="progPct" value="50" /> 50%
+        </label>
+        <label style="flex:1; border:1px solid var(--line); padding:10px; border-radius:4px; text-align:center; cursor:pointer;">
+          <input type="radio" name="progPct" value="75" /> 75%
+        </label>
+        <label style="flex:1; border:1px solid var(--line); padding:10px; border-radius:4px; text-align:center; cursor:pointer;">
+          <input type="radio" name="progPct" value="100" /> 100% (Complete)
+        </label>
+      </div>
+
+      <label for="progWorkNote" style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; font-weight:700;">FIELD ENGINEER WORK NOTE</label>
+      <textarea id="progWorkNote" rows="3" placeholder="Describe work done (materials used, compaction layers, fixtures replaced)..." style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid var(--line); border-radius:4px; font-family:'Inter'; font-size:13px; margin-bottom:18px;"></textarea>
+
+      <label style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; font-weight:700;">UPLOAD ON-SITE WORK PROOF PHOTO (SEPARATE FROM ORIGINAL)</label>
+      <div style="border:1.5px dashed var(--line); border-radius:6px; padding:20px; text-align:center; cursor:pointer;" onclick="document.getElementById('progPhotoInput').click()">
+        <input type="file" id="progPhotoInput" accept="image/*" style="display:none;" onchange="previewProgressPhoto(this)" />
+        <div id="progPhotoPlaceholder">
+          <div style="font-size:24px; margin-bottom:6px;">📸</div>
+          <b style="font-size:13px;">Select Progress Proof Image</b>
+          <small style="display:block; color:var(--slate);">JPG, PNG, WebP showing completed ground fix</small>
+        </div>
+        <img id="progPhotoPreview" src="" alt="Proof preview" style="display:none; max-height:160px; margin:0 auto; border-radius:4px;" />
+      </div>
+
+      <div style="margin-top:16px;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;">
+          <input type="checkbox" id="chkSubmitVerification" checked />
+          <span><b>Submit for Municipal Admin Verification</b> (Unlocks milestone fund release)</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" onclick="closeProgressModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="submitProgressUpdate()">Submit Progress Proof →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Verification & Fund Release Action Modal -->
+<div class="modal-backdrop" id="modalAdminVerify">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="kicker" style="color:var(--green);">Administrative Verification</div>
+        <h3 id="admModalTitle">Review Work Proof & Release Funds</h3>
+      </div>
+      <button type="button" class="modal-close" onclick="closeAdminVerifyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="admModalUpdateId" />
+      <input type="hidden" id="admModalReportId" />
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+        <div class="verify-photo-box">
+          <img id="admModalOriginalImg" src="" alt="Original Report Photo" />
+          <span>ORIGINAL COMPLAINT PHOTO</span>
+        </div>
+        <div class="verify-photo-box">
+          <img id="admModalProofImg" src="" alt="Contractor Progress Proof Photo" />
+          <span>CONTRACTOR WORK PROOF</span>
+        </div>
+      </div>
+
+      <div class="detail-stats" style="margin-bottom:18px;">
+        <div class="dstat"><span>CAMPAIGN GOAL</span><b id="admModalGoal">₹0</b></div>
+        <div class="dstat"><span>TOTAL RAISED</span><b id="admModalRaised" style="color:var(--marigold-deep);">₹0</b></div>
+        <div class="dstat"><span>ALREADY RELEASED</span><b id="admModalReleased" style="color:var(--green);">₹0</b></div>
+      </div>
+
+      <label for="admReleaseAmount" style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; font-weight:700;">MILESTONE FUNDS TO RELEASE (₹)</label>
+      <input type="number" id="admReleaseAmount" style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid var(--line); border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:700; margin-bottom:14px;" />
+
+      <label for="admNotes" style="display:block; font-size:11.5px; font-family:'IBM Plex Mono',monospace; margin-bottom:6px; font-weight:700;">ENGINEERING VERIFICATION NOTES</label>
+      <textarea id="admNotes" rows="2" placeholder="On-site inspection notes or quality assessment..." style="width:100%; box-sizing:border-box; padding:10px 14px; border:1px solid var(--line); border-radius:4px; font-family:'Inter'; font-size:13px;"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="adminTriggerRework()">Request Rework</button>
+      <button type="button" class="btn btn-primary" onclick="adminTriggerApprove()">✓ Approve Proof & Release Funds</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Nirmaan — Citizen-Powered Civic Infrastructure Platform · End-to-End Workflow</span>
+    <span>National Pilot Zone · Real AI Models (ResNet-50 + ResNet-18) · Deterministic Cost & Matching Engine</span>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+"""
+Database reset script for NIRMAAN.
+Wipes ALL mock/seeded civic reports, funding campaigns, transactions,
+assignments, field task updates, verification records, audit history, and rewards.
+
+Preserves the 1,000 registered contributor master profiles and matching database.
+"""
+from database import get_connection
+
+def reset_civic_data():
+    conn, engine = get_connection()
+    try:
+        print(f"[Reset] Cleaning civic records from database (engine: {engine})...")
+        if engine == "mysql":
+            with conn.cursor() as cur:
+                cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                cur.execute("TRUNCATE TABLE verification_records;")
+                cur.execute("TRUNCATE TABLE task_updates;")
+                cur.execute("TRUNCATE TABLE assignments;")
+                cur.execute("TRUNCATE TABLE status_history;")
+                cur.execute("TRUNCATE TABLE funding_transactions;")
+                cur.execute("TRUNCATE TABLE funding_campaigns;")
+                cur.execute("TRUNCATE TABLE reports;")
+                cur.execute("TRUNCATE TABLE rewards_ledger;")
+                cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        else:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM verification_records;")
+            cur.execute("DELETE FROM task_updates;")
+            cur.execute("DELETE FROM assignments;")
+            cur.execute("DELETE FROM status_history;")
+            cur.execute("DELETE FROM funding_transactions;")
+            cur.execute("DELETE FROM funding_campaigns;")
+            cur.execute("DELETE FROM reports;")
+            cur.execute("DELETE FROM rewards_ledger;")
+            conn.commit()
+
+        print("[Reset] Successfully cleared all civic defect reports, funding campaigns, tasks, and rewards.")
+        print("[Reset] System is now in a pristine DATA-DRIVEN state (0 mock records).")
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    reset_civic_data()

@@ -1,0 +1,191 @@
+"""
+prepare_severity_dataset.py
+----------------------------
+Generates a category-aware, visually calibrated severity dataset for NIRMAAN.
+
+Audit & Methodology:
+1. POTHOLES:
+   - Relative cavity depression: fraction of pixels significantly darker than surrounding road median.
+   - Deep cavity core: dark shadow cavity at the center of the pothole.
+   - Edge density / high-frequency crack propagation across the road.
+   - Calibrated: Minor crack = Low; Noticeable depression = Medium; Deep crater/severe fractures = High.
+
+2. WATERLOGGING:
+   - Water surface extent: smooth specular reflection region in lower 65% of frame.
+   - Standing water ponding contrast against dry road.
+   - Low edge density in flood region.
+   - Calibrated: Shallow localized puddle = Low; Significant passable water = Medium; Widespread deep road submersion = High.
+
+3. STREETLIGHTS:
+   - Pole structural disorder: deviation from upright vertical orientation.
+   - Structural damage: jagged breaks, broken luminaires, exposed wiring.
+   - Calibrated: Minor luminaire issue = Low; Standard non-functional/damaged pole = Medium (~4-5); Severely collapsed/dangling pole = High.
+
+4. GARBAGE:
+   - Clutter entropy: high-frequency debris dispersion.
+   - Spatial spread across ground plane.
+   - Color diversity: saturation variance and multi-color waste spread.
+   - Calibrated: Small localized waste = Low; Noticeable accumulation = Medium; Large overflowing open dump = High.
+
+Output directory structure:
+  nirmaan_severity_dataset/
+    <split>/<category>/<Low|Medium|High>/<filename>
+"""
+
+import os
+import shutil
+import json
+import numpy as np
+from PIL import Image
+
+SOURCE_DIR = r"c:\Users\LENOVO\OneDrive\Documents\live project\nirmaan_recognition_final"
+DEST_DIR = r"c:\Users\LENOVO\OneDrive\Documents\live project\nirmaan_severity_dataset"
+MANIFEST_PATH = r"c:\Users\LENOVO\OneDrive\Documents\live project\severity_dataset_manifest.json"
+
+CATEGORIES = ["potholes", "waterlogging", "streetlights", "garbage"]
+SEVERITY_LEVELS = ["Low", "Medium", "High"]
+
+def compute_category_score(img_path, category):
+    im = Image.open(img_path).convert("RGB").resize((224, 224))
+    arr = np.array(im, dtype=np.float32) / 255.0
+    lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    med_lum = float(np.median(lum))
+    lum_var = float(np.var(lum))
+    
+    grad_x = np.abs(np.diff(lum, axis=1, append=lum[:, -1:]))
+    grad_y = np.abs(np.diff(lum, axis=0, append=lum[-1:, :]))
+    grad_mag = np.sqrt(grad_x**2 + grad_y**2)
+    edge_density = float(np.mean(grad_mag > 0.08))
+
+    if category == "potholes":
+        # Relative cavity depression (pixels significantly darker than median road)
+        rel_depression = float(np.mean(lum < (med_lum * 0.72)))
+        # Deep cavity core in shadow
+        dark_core = float(np.mean(lum < (med_lum * 0.45)))
+        score = (
+            0.35 * min(rel_depression * 2.5, 1.0) +
+            0.35 * min(edge_density * 2.5, 1.0) +
+            0.20 * min(dark_core * 4.0, 1.0) +
+            0.10 * min(lum_var * 8.0, 1.0)
+        )
+        # Thresholds: Low < 0.38, Med 0.38-0.62, High >= 0.62
+        t_low, t_high = 0.38, 0.62
+
+    elif category == "waterlogging":
+        # Lower 65% of image contains the roadway
+        lower_half = lum[80:, :]
+        lg_x = np.abs(np.diff(lower_half, axis=1, append=lower_half[:, -1:]))
+        lg_y = np.abs(np.diff(lower_half, axis=0, append=lower_half[-1:, :]))
+        # Smooth specular region indicative of standing water
+        water_extent = float(np.mean((lg_x < 0.035) & (lg_y < 0.035)))
+        dark_ponding = float(np.mean(lower_half < (med_lum * 0.75)))
+        score = (
+            0.50 * min(water_extent * 1.5, 1.0) +
+            0.30 * min(dark_ponding * 2.0, 1.0) +
+            0.10 * (1.0 - min(edge_density * 2.0, 1.0)) +
+            0.10 * min(lum_var * 6.0, 1.0)
+        )
+        # Thresholds: Low < 0.52, Med 0.52-0.68, High >= 0.68
+        t_low, t_high = 0.52, 0.68
+
+    elif category == "streetlights":
+        horiz_edges = float(np.mean(grad_x > 0.08))
+        vert_edges = float(np.mean(grad_y > 0.08))
+        structural_damage = float(np.mean(grad_mag > 0.12))
+        pole_disorder = horiz_edges / (vert_edges + 1e-4)
+        dark_unlit = float(np.mean(lum < 0.25))
+        score = (
+            0.40 * min(structural_damage * 2.5, 1.0) +
+            0.35 * min(pole_disorder * 0.5, 1.0) +
+            0.15 * min(dark_unlit * 2.0, 1.0) +
+            0.10 * min(lum_var * 8.0, 1.0)
+        )
+        # Thresholds: Low < 0.28, Med 0.28-0.52 (centered around ~4-5), High >= 0.52
+        t_low, t_high = 0.28, 0.52
+
+    elif category == "garbage":
+        hsv = im.convert("HSV")
+        sat = np.array(hsv, dtype=np.float32)[:, :, 1] / 255.0
+        color_div = float(np.var(sat) * 10.0 + np.mean(np.std(arr, axis=2)) * 3.0)
+        clutter = float(np.mean(grad_mag > 0.07))
+        spread = float(np.mean(arr[100:, :, :] > 0.10))
+        score = (
+            0.40 * min(clutter * 2.2, 1.0) +
+            0.35 * min(spread * 1.1, 1.0) +
+            0.15 * min(color_div * 1.5, 1.0) +
+            0.10 * min(lum_var * 8.0, 1.0)
+        )
+        # Thresholds: Low < 0.80, Med 0.80-0.89, High >= 0.89
+        t_low, t_high = 0.80, 0.89
+
+    else:
+        score = 0.5
+        t_low, t_high = 0.33, 0.67
+
+    score = float(round(score, 4))
+    if score < t_low:
+        severity = "Low"
+        sev_id = 0
+    elif score < t_high:
+        severity = "Medium"
+        sev_id = 1
+    else:
+        severity = "High"
+        sev_id = 2
+
+    return score, severity, sev_id, (t_low, t_high)
+
+def main():
+    print("[1/3] Preparing Category-Aware Severity Dataset...")
+    if os.path.exists(DEST_DIR):
+        shutil.rmtree(DEST_DIR)
+
+    manifest_records = []
+    category_counts = {c: {"Low": 0, "Medium": 0, "High": 0} for c in CATEGORIES}
+
+    for split in ["train", "validation", "test"]:
+        for cat in CATEGORIES:
+            cat_src = os.path.join(SOURCE_DIR, split, cat)
+            if not os.path.exists(cat_src):
+                continue
+            files = [f for f in sorted(os.listdir(cat_src)) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            
+            for fname in files:
+                src_path = os.path.join(cat_src, fname)
+                try:
+                    score, severity, sev_id, thresholds = compute_category_score(src_path, cat)
+                    dst_folder = os.path.join(DEST_DIR, split, cat, severity)
+                    os.makedirs(dst_folder, exist_ok=True)
+                    dst_path = os.path.join(dst_folder, fname)
+                    shutil.copy2(src_path, dst_path)
+
+                    manifest_records.append({
+                        "filename": fname,
+                        "category": cat,
+                        "split": split,
+                        "severity": severity,
+                        "severity_id": sev_id,
+                        "visual_score": score,
+                        "thresholds": {"t_low": thresholds[0], "t_high": thresholds[1]},
+                        "image_path": dst_path
+                    })
+                    if split == "train":
+                        category_counts[cat][severity] += 1
+                except Exception as e:
+                    print(f"Warning: skipped {fname}: {e}")
+
+    with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
+        json.dump({
+            "total_images": len(manifest_records),
+            "categories": CATEGORIES,
+            "severity_levels": SEVERITY_LEVELS,
+            "records": manifest_records
+        }, f, indent=2)
+
+    print(f"[2/3] Manifest written to {MANIFEST_PATH} (Total: {len(manifest_records)} images)")
+    print("\n[3/3] Training Split Category-Specific Severity Distribution:")
+    for cat in CATEGORIES:
+        print(f"  {cat:14s}: Low={category_counts[cat]['Low']:3d} | Med={category_counts[cat]['Medium']:3d} | High={category_counts[cat]['High']:3d}")
+
+if __name__ == "__main__":
+    main()

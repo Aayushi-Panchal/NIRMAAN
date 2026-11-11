@@ -1,0 +1,97 @@
+{
+  "architecture": "CategoryConditioned-ResNet18",
+  "backbone": "ResNet-18 (ImageNet pretrained)",
+  "heads": [
+    "potholes_head",
+    "waterlogging_head",
+    "streetlights_head",
+    "garbage_head"
+  ],
+  "classes": [
+    "Low",
+    "Medium",
+    "High"
+  ],
+  "class_to_idx": {
+    "Low": 0,
+    "Medium": 1,
+    "High": 2
+  },
+  "test_accuracy": 0.6943,
+  "test_macro_f1": 0.6982,
+  "test_weighted_f1": 0.6891,
+  "confusion_matrix": [
+    [
+      25,
+      1,
+      0
+    ],
+    [
+      22,
+      46,
+      18
+    ],
+    [
+      0,
+      7,
+      38
+    ]
+  ],
+  "per_category_metrics": {
+    "potholes": {
+      "support": 17,
+      "accuracy": 0.6471,
+      "macro_f1": 0.6444
+    },
+    "waterlogging": {
+      "support": 67,
+      "accuracy": 0.7015,
+      "macro_f1": 0.6321
+    },
+    "streetlights": {
+      "support": 45,
+      "accuracy": 0.7333,
+      "macro_f1": 0.6655
+    },
+    "garbage": {
+      "support": 28,
+      "accuracy": 0.6429,
+      "macro_f1": 0.4507
+    }
+  },
+  "classification_report": {
+    "Low": {
+      "precision": 0.5319148936170213,
+      "recall": 0.9615384615384616,
+      "f1-score": 0.684931506849315,
+      "support": 26.0
+    },
+    "Medium": {
+      "precision": 0.8518518518518519,
+      "recall": 0.5348837209302325,
+      "f1-score": 0.6571428571428571,
+      "support": 86.0
+    },
+    "High": {
+      "precision": 0.6785714285714286,
+      "recall": 0.8444444444444444,
+      "f1-score": 0.7524752475247525,
+      "support": 45.0
+    },
+    "accuracy": 0.6942675159235668,
+    "macro avg": {
+      "precision": 0.687446058013434,
+      "recall": 0.7802888756377128,
+      "f1-score": 0.6981832038389749,
+      "support": 157.0
+    },
+    "weighted avg": {
+      "precision": 0.7492022979555166,
+      "recall": 0.6942675159235668,
+      "f1-score": 0.6890693696240876,
+      "support": 157.0
+    }
+  },
+  "checkpoint_path": "c:\\Users\\LENOVO\\OneDrive\\Documents\\live project\\nirmaan_severity_best.pth",
+  "total_test_samples": 157
+}

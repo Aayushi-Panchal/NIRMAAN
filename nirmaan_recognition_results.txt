@@ -1,0 +1,27 @@
+NIRMAAN CIVIC PROBLEM RECOGNITION MODEL - TEST RESULTS
+============================================================
+
+Architecture : ResNet-50
+Checkpoint   : nirmaan_recognition_best.pth
+Classes      : garbage, potholes, streetlights, waterlogging
+
+Test Accuracy     : 96.82%
+Weighted Precision: 97.32%
+Weighted Recall   : 96.82%
+Weighted F1 Score : 96.89%
+Macro F1 Score    : 95.96%
+
+CLASSIFICATION REPORT:
+--------------------------------------------------
+              precision    recall  f1-score   support
+
+     garbage     0.9655    1.0000    0.9825        28
+    potholes     0.8095    1.0000    0.8947        17
+streetlights     1.0000    1.0000    1.0000        45
+waterlogging     1.0000    0.9254    0.9612        67
+
+    accuracy                         0.9682       157
+   macro avg     0.9438    0.9813    0.9596       157
+weighted avg     0.9732    0.9682    0.9689       157
+
+

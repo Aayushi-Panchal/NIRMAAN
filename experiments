@@ -1,0 +1,13 @@
+NIRMAAN RECOGNITION MODEL - ERROR ANALYSIS REPORT
+============================================================
+
+Total Test Samples: 157
+Total Misclassified: 5 (3.18% error rate)
+
+Misclassified Samples Details:
+------------------------------------------------------------
+Image: waterlogging_00010.jpg | Actual: waterlogging -> Predicted: potholes (Confidence: 80.7%)
+Image: waterlogging_00017.jpg | Actual: waterlogging -> Predicted: garbage (Confidence: 58.7%)
+Image: waterlogging_00037.jpg | Actual: waterlogging -> Predicted: potholes (Confidence: 57.4%)
+Image: waterlogging_00046.jpg | Actual: waterlogging -> Predicted: potholes (Confidence: 52.4%)
+Image: waterlogging_00051.jpg | Actual: waterlogging -> Predicted: potholes (Confidence: 54.3%)

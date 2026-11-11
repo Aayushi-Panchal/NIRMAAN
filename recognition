@@ -1,0 +1,20 @@
+{
+    "class_to_idx": {
+        "garbage": 0,
+        "potholes": 1,
+        "streetlights": 2,
+        "waterlogging": 3
+    },
+    "idx_to_class": {
+        "0": "garbage",
+        "1": "potholes",
+        "2": "streetlights",
+        "3": "waterlogging"
+    },
+    "classes": [
+        "garbage",
+        "potholes",
+        "streetlights",
+        "waterlogging"
+    ]
+}

@@ -1,0 +1,19 @@
+﻿.env
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+nirmaan dataset/
+nirmaan_severity_dataset/
+*.pth
+*.pt
+
+models/checkpoints

@@ -1,0 +1,27 @@
+NIRMAAN BASELINE MODEL RESULTS
+================================
+
+Model: ResNet-50
+Classes: garbage, potholes, streetlights, waterlogging
+Total Images: 1020
+Training Images: 714
+Validation Images: 153
+Test Images: 153
+
+Accuracy: 90.85%
+Precision: 91.78%
+Recall: 90.85%
+F1 Score: 89.91%
+
+Classification Report
+=====================
+              precision    recall  f1-score   support
+
+     garbage       1.00      1.00      1.00        27
+    potholes       1.00      0.44      0.61        16
+streetlights       0.93      0.89      0.91        44
+waterlogging       0.86      1.00      0.92        66
+
+    accuracy                           0.91       153
+   macro avg       0.95      0.83      0.86       153
+weighted avg       0.92      0.91      0.90       153

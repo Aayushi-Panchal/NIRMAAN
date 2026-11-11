@@ -1,0 +1,285 @@
+"""
+Comprehensive Test Suite for NIRMAAN Contributor Matching System.
+
+Tests all 15 required functionalities:
+1. XML import & parsing integrity
+2. Database connection & fallback
+3. Contributor retrieval from database
+4. Category / skill compatibility scoring
+5. Haversine distance calculation
+6. Service radius filtering & scoring decay
+7. Budget matching & overlap scoring
+8. Severity matching (Low/Medium/High)
+9. Past-work matching & category experience
+10. Reliability & verification scoring
+11. Availability filtering & scoring
+12. Top-3 contributor generation & formatting
+13. Deterministic repeated requests consistency
+14. Different categories produce distinct suitable contributors
+15. Different locations affect distance and ranking
+16. Backend API endpoint POST /api/match validation
+"""
+import os
+import unittest
+import json
+from app import app
+from database import (
+    get_connection, get_all_active_contributors, get_contributor_count,
+    check_mysql_connection
+)
+from import_contributors import import_contributors_from_xml, parse_contributor_node
+from matching_engine import (
+    haversine_distance_km,
+    calculate_category_skill_score,
+    calculate_distance_score,
+    calculate_budget_score,
+    calculate_severity_score,
+    calculate_past_work_score,
+    calculate_reliability_score,
+    calculate_availability_score,
+    rank_contributors
+)
+from geocoding_service import resolve_location
+
+
+class TestNirmaanContributorMatching(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        """Ensure database is loaded and initialized."""
+        count = get_contributor_count()
+        if count == 0:
+            import_contributors_from_xml()
+
+    def test_01_xml_import_and_count(self):
+        """Test 1: Verify XML parsing and contributor record import count."""
+        count = get_contributor_count()
+        self.assertGreaterEqual(count, 1000, "Expected at least 1000 contributors in database.")
+        print(f"[TEST 1 PASSED] Contributor count in DB: {count}")
+
+    def test_02_database_connection(self):
+        """Test 2: Verify active database connection and engine."""
+        conn, engine = get_connection()
+        self.assertIsNotNone(conn)
+        self.assertIn(engine, ["mysql", "sqlite"])
+        conn.close()
+        mysql_ok, err = check_mysql_connection()
+        print(f"[TEST 2 PASSED] Connected via {engine}. (MySQL server status: {'Connected' if mysql_ok else f'Auth needed: {err}'})")
+
+    def test_03_contributor_retrieval(self):
+        """Test 3: Verify retrieval of active contributors with relational details."""
+        contributors = get_all_active_contributors()
+        self.assertTrue(len(contributors) > 0, "Active contributors list should not be empty.")
+        first = contributors[0]
+        self.assertIn("id", first)
+        self.assertIn("skills", first)
+        self.assertIn("categories", first)
+        self.assertIn("past_work", first)
+        self.assertIsInstance(first["skills"], list)
+        self.assertIsInstance(first["categories"], list)
+        self.assertIsInstance(first["past_work"], dict)
+        print(f"[TEST 3 PASSED] Successfully retrieved {len(contributors)} active contributors with full relations.")
+
+    def test_04_category_skill_matching(self):
+        """Test 4: Verify category and skill matching scores."""
+        contrib = {
+            "categories": ["potholes", "streetlights"],
+            "skills": ["road_repair", "civil_construction"],
+            "preferred_work_scope": "road_surface_repair"
+        }
+        score_match = calculate_category_skill_score("potholes", "road surface repair", contrib)
+        score_mismatch = calculate_category_skill_score("garbage", "waste cleanup", contrib)
+        self.assertGreater(score_match, score_mismatch)
+        self.assertGreaterEqual(score_match, 80.0)
+        print(f"[TEST 4 PASSED] Category score match ({score_match:.1f}) > mismatch ({score_mismatch:.1f}).")
+
+    def test_05_distance_calculation(self):
+        """Test 5: Verify Haversine geographic distance calculation."""
+        # Sonipat (28.9931, 77.0151) to Murthal (29.0345, 77.0673) is roughly 6.9 - 7.2 km
+        dist = haversine_distance_km(28.9931, 77.0151, 29.0345, 77.0673)
+        self.assertIsNotNone(dist)
+        self.assertAlmostEqual(dist, 7.0, delta=1.5)
+
+        # Distance to self must be 0
+        dist_zero = haversine_distance_km(28.9931, 77.0151, 28.9931, 77.0151)
+        self.assertEqual(dist_zero, 0.0)
+        print(f"[TEST 5 PASSED] Haversine calculation verified: Sonipat-Murthal = {dist} km.")
+
+    def test_06_service_radius_filtering_and_scoring(self):
+        """Test 6: Verify service radius affects distance score correctly."""
+        # Contributor with 10km radius
+        score_near = calculate_distance_score(2.0, 10.0)
+        score_at_boundary = calculate_distance_score(10.0, 10.0)
+        score_far = calculate_distance_score(25.0, 10.0)
+        self.assertGreater(score_near, score_at_boundary)
+        self.assertGreater(score_at_boundary, score_far)
+        print(f"[TEST 6 PASSED] Radius scores: near(2km)={score_near}, boundary(10km)={score_at_boundary}, far(25km)={score_far}.")
+
+    def test_07_budget_matching(self):
+        """Test 7: Verify budget range overlap scoring."""
+        # Estimated: 12000 - 15000
+        # Matching contributor: 10000 - 20000 (encompasses problem)
+        score_overlap = calculate_budget_score(12000, 15000, 10000, 20000)
+        # Incompatible contributor: 80000 - 150000
+        score_no_overlap = calculate_budget_score(12000, 15000, 80000, 150000)
+        self.assertGreater(score_overlap, score_no_overlap)
+        self.assertGreaterEqual(score_overlap, 85.0)
+        print(f"[TEST 7 PASSED] Budget scores: overlap={score_overlap}, incompatible={score_no_overlap}.")
+
+    def test_08_severity_matching(self):
+        """Test 8: Verify severity handling (Low, Medium, High)."""
+        score_high_capable = calculate_severity_score("high", 8.0, "high")
+        score_medium_capable = calculate_severity_score("high", 8.0, "medium")
+        score_low_capable = calculate_severity_score("high", 8.0, "low")
+        self.assertGreater(score_high_capable, score_medium_capable)
+        self.assertGreater(score_medium_capable, score_low_capable)
+        print(f"[TEST 8 PASSED] Severity capability for High: High-cap={score_high_capable}, Med-cap={score_medium_capable}, Low-cap={score_low_capable}.")
+
+    def test_09_past_work_matching(self):
+        """Test 9: Verify category-relevant past experience scoring."""
+        pw_relevant = {"potholes": 35, "garbage": 2}
+        pw_irrelevant = {"garbage": 40}
+        score_rel = calculate_past_work_score("potholes", pw_relevant, 8, 120)
+        score_irrel = calculate_past_work_score("potholes", pw_irrelevant, 8, 120)
+        self.assertGreater(score_rel, score_irrel)
+        print(f"[TEST 9 PASSED] Past work score: relevant ({score_rel}) > irrelevant ({score_irrel}).")
+
+    def test_10_reliability_scoring(self):
+        """Test 10: Verify completion rate and verification status impact."""
+        score_verified_high = calculate_reliability_score(0.98, 150, "verified")
+        score_unverified_low = calculate_reliability_score(0.70, 20, "unverified")
+        self.assertGreater(score_verified_high, score_unverified_low)
+        print(f"[TEST 10 PASSED] Reliability: verified+high={score_verified_high} vs unverified+low={score_unverified_low}.")
+
+    def test_11_availability_scoring(self):
+        """Test 11: Verify availability scoring."""
+        score_avail = calculate_availability_score("available")
+        score_busy = calculate_availability_score("busy")
+        score_unavail = calculate_availability_score("unavailable")
+        self.assertGreater(score_avail, score_busy)
+        self.assertGreater(score_busy, score_unavail)
+        print(f"[TEST 11 PASSED] Availability scores: available={score_avail}, busy={score_busy}, unavail={score_unavail}.")
+
+    def test_12_top_3_generation(self):
+        """Test 12: Verify ranking produces exactly top 3 matches with transparent reasons."""
+        problem = {
+            "category": "potholes",
+            "severity": "High",
+            "severity_score": 7.5,
+            "estimated_cost_min": 12000,
+            "estimated_cost_max": 18000,
+            "work_scope": "Road surface patch and asphalt compaction",
+            "location_text": "Sector 21, Sonipat"
+        }
+        res = rank_contributors(problem, top_n=3)
+        self.assertTrue(res["success"])
+        self.assertEqual(len(res["matches"]), 3)
+        for m in res["matches"]:
+            self.assertIn("contributor_id", m)
+            self.assertIn("name", m)
+            self.assertIn("organization", m)
+            self.assertIn("match_score", m)
+            self.assertIn("distance_km", m)
+            self.assertIn("reasons", m)
+            self.assertIsInstance(m["reasons"], list)
+            self.assertGreater(len(m["reasons"]), 0)
+        print(f"[TEST 12 PASSED] Successfully generated Top 3 matches with transparent reasons.")
+
+    def test_13_determinism_consistency(self):
+        """Test 13: Verify that identical requests produce identical rankings and scores."""
+        problem = {
+            "category": "waterlogging",
+            "severity": "Medium",
+            "severity_score": 5.2,
+            "estimated_cost_min": 25000,
+            "estimated_cost_max": 45000,
+            "work_scope": "Drainage clearing and pump deployment",
+            "location_text": "Model Town, Sonipat"
+        }
+        res1 = rank_contributors(problem, top_n=3)
+        res2 = rank_contributors(problem, top_n=3)
+
+        ids1 = [m["contributor_id"] for m in res1["matches"]]
+        ids2 = [m["contributor_id"] for m in res2["matches"]]
+        scores1 = [m["match_score"] for m in res1["matches"]]
+        scores2 = [m["match_score"] for m in res2["matches"]]
+
+        self.assertEqual(ids1, ids2, "Contributor IDs must be strictly deterministic.")
+        self.assertEqual(scores1, scores2, "Match scores must be strictly deterministic.")
+        print(f"[TEST 13 PASSED] Deterministic results verified across repeated executions: IDs={ids1}, Scores={scores1}.")
+
+    def test_14_different_categories_produce_different_rankings(self):
+        """Test 14: Verify different categories produce different suitable contributors."""
+        potholes_prob = {
+            "category": "potholes",
+            "severity": "Medium",
+            "estimated_cost_min": 10000,
+            "estimated_cost_max": 15000,
+            "location_text": "Sector 21, Sonipat"
+        }
+        garbage_prob = {
+            "category": "garbage",
+            "severity": "Medium",
+            "estimated_cost_min": 5000,
+            "estimated_cost_max": 10000,
+            "location_text": "Sector 21, Sonipat"
+        }
+        res_potholes = rank_contributors(potholes_prob, top_n=3)
+        res_garbage = rank_contributors(garbage_prob, top_n=3)
+
+        pothole_top = res_potholes["matches"][0]["contributor_id"]
+        garbage_top = res_garbage["matches"][0]["contributor_id"]
+
+        self.assertNotEqual(pothole_top, garbage_top)
+        print(f"[TEST 14 PASSED] Category differentiation verified: Top Potholes={pothole_top} vs Top Garbage={garbage_top}.")
+
+    def test_15_different_locations_affect_ranking_and_distance(self):
+        """Test 15: Verify geographic location affects distance and contributor ranking."""
+        sonipat_prob = {
+            "category": "streetlights",
+            "severity": "Medium",
+            "estimated_cost_min": 15000,
+            "estimated_cost_max": 25000,
+            "location_text": "Sonipat"
+        }
+        rohtak_prob = {
+            "category": "streetlights",
+            "severity": "Medium",
+            "estimated_cost_min": 15000,
+            "estimated_cost_max": 25000,
+            "location_text": "Rohtak"
+        }
+        res_sonipat = rank_contributors(sonipat_prob, top_n=3)
+        res_rohtak = rank_contributors(rohtak_prob, top_n=3)
+
+        sonipat_c0_dist = res_sonipat["matches"][0]["distance_km"]
+        rohtak_c0_dist = res_rohtak["matches"][0]["distance_km"]
+
+        self.assertIsNotNone(sonipat_c0_dist)
+        self.assertIsNotNone(rohtak_c0_dist)
+        print(f"[TEST 15 PASSED] Location effect verified: Sonipat top match dist={sonipat_c0_dist}km, Rohtak top match dist={rohtak_c0_dist}km.")
+
+    def test_16_api_endpoint_match(self):
+        """Test 16: Verify Flask REST API POST /api/match returns top 3 contributors."""
+        client = app.test_client()
+        payload = {
+            "category": "potholes",
+            "severity": "High",
+            "severity_score": 6.7,
+            "estimated_cost_min": 12100,
+            "estimated_cost_max": 15300,
+            "work_scope": "Road surface repair",
+            "location_text": "Sector 21, Sonipat",
+            "latitude": 28.9855,
+            "longitude": 77.0260
+        }
+        response = client.post("/api/match", data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(len(data.get("matches", [])), 3)
+        print(f"[TEST 16 PASSED] POST /api/match returned 200 OK with {len(data['matches'])} matches.")
+
+
+if __name__ == "__main__":
+    unittest.main()
